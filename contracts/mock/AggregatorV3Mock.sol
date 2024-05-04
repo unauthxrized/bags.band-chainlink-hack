@@ -1,9 +1,12 @@
-
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.16;
+pragma solidity ^0.8.24;
 
 contract AggregatorV3Mock {
-    int256 public cost = 6433317402647;
+    int256 public cost;
+
+    constructor(int256 _cost) payable {
+        cost = _cost;
+    }
 
     function setCost(int _cost) external {
         cost = _cost;
