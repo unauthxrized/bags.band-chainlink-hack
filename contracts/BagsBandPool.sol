@@ -12,5 +12,5 @@ contract BagsBandPool is Ownable {
         bool isLong;
     }
     
-    constructor(address userstorage) Ownable(msg.sender) payable {}
+    constructor(address userstorage, address oracle) Ownable(msg.sender) payable {}
 }
