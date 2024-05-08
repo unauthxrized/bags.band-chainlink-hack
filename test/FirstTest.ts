@@ -33,14 +33,22 @@ describe("FirstTest", function () {
     const BagsBandPoolContract = await ethers.getContractFactory("BagsBandPool");
     firstprotocol = await BagsBandPoolContract.deploy(await storage.getAddress(), await btcpair.getAddress());
     secondprotocol = await BagsBandPoolContract.deploy(await storage.getAddress(), await ethpair.getAddress());
+
+    await storage.addProtocol(await firstprotocol.getAddress());
+    await storage.addProtocol(await secondprotocol.getAddress());
 })
 
-  describe("Fisrt Test Init", function () {
-    it("Some expected desc", async function () {
-
+  describe("Test Init", function () {
+    it("First Protocol Test", async function () {
+      await firstprotocol.connect(user).makePosition(true, 1000);
+      const userPosition = await firstprotocol.position(user.address);
+      
+      expect(userPosition[0]).eq(1000n);
     });
 
     it("Some expected desc", async function () {
+      const balance = await storage.getBalance(user.address);
+      expect(balance).eq(9000n);
     });
 
     it("Some expected desc", async function () {

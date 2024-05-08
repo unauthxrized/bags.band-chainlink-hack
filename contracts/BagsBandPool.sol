@@ -1,12 +1,13 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IUserStorage } from "./interface/IUserStorage.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { Percentage } from "./utils/Percentage.sol";
 
-contract BagsBandPool is Ownable {
+contract BagsBandPool is Ownable, Percentage {
     AggregatorV3Interface public immutable ORACLE;
     IUserStorage public immutable STORAGE;
 
@@ -20,6 +21,9 @@ contract BagsBandPool is Ownable {
     }
 
     mapping (address => UserPosition) public position;
+
+    error NotAcceptedAmount(uint128 amount, address user);
+    error BalanceIsZero(address user);
     
     constructor(address userstorage, address oracle) Ownable(msg.sender) payable {
         STORAGE = IUserStorage(userstorage);
@@ -29,9 +33,11 @@ contract BagsBandPool is Ownable {
     // SETTERS
 
     function makePosition(bool typeOf, uint128 amount) external returns (UserPosition memory) {
-        STORAGE.makePosition(msg.sender, amount);
-        UserPosition memory pos;
+        if (amount == 0) { revert NotAcceptedAmount(amount, msg.sender); }
 
+        STORAGE.makePositionFrom(msg.sender, amount);
+
+        UserPosition memory pos;
         pos.position = typeOf;
         pos.amount = amount;
         pos.price = _getPriceConverted();
@@ -41,10 +47,59 @@ contract BagsBandPool is Ownable {
     }
 
     function closePosition() external returns (bool) {
+        UserPosition memory pos = position[msg.sender];
+        if (pos.amount == 0) { revert BalanceIsZero(msg.sender); }
 
+        uint128 currentPrice = _getCurrentPriceToReward();
+        uint128 initialPrice = _getUserPrice(pos.price);
+        uint128 toStorage;
+
+        if (currentPrice > initialPrice) {
+            (, uint128 percentage) = _ofIncrease(initialPrice, currentPrice);
+            uint128 lp = _ofPercent(percentage, pos.amount);
+            if (pos.position) {
+                toStorage = pos.amount + lp;
+            } else {
+                toStorage = pos.amount - lp;
+            }
+        }
+        if (currentPrice <= initialPrice) {
+            (, uint128 percentage) = _ofDecrease(initialPrice, currentPrice);
+            uint128 lp = _ofPercent(percentage, pos.amount);
+            if (pos.position) {
+                toStorage = pos.amount - lp;
+            } else {
+                toStorage = pos.amount + lp;
+            }
+        }
+        STORAGE.closeUserPosition(msg.sender, toStorage);
+
+        pos.amount = 0;
+        pos.price = 0;
+        pos.position = false;
+        position[msg.sender] = pos;
+
+        return true;
     }
 
     // GETTERS
+
+    function calculateReward(address user) external view returns (uint128 increased, uint128 percentaged, uint128 ulpgained, bool upos) {
+        UserPosition memory pos = position[user];
+        uint128 currentPrice = _getCurrentPriceToReward();
+        uint128 initialPrice = _getUserPrice(pos.price);
+        
+        if (currentPrice > initialPrice) {
+            (uint128 increase, uint128 percentage) = _ofIncrease(initialPrice, currentPrice);
+            uint128 lpGained = _ofPercent(percentage, pos.amount);
+            return (increase, percentage, lpGained, pos.position);
+        }
+        if (currentPrice <= initialPrice) {
+            (uint128 increase, uint128 percentage) = _ofDecrease(initialPrice, currentPrice);
+            uint128 lpGained = _ofPercent(percentage, pos.amount);
+            return (increase, percentage, lpGained, pos.position);
+        }
+    }
 
     // PRIVATE
 
@@ -52,4 +107,14 @@ contract BagsBandPool is Ownable {
         (, int256 price, , , ) = ORACLE.latestRoundData();
         return SafeCast.toInt120(price);
     }
+
+    function _getCurrentPriceToReward() private view returns (uint128) {
+        (, int256 price, , , ) = ORACLE.latestRoundData();
+        return SafeCast.toUint128(SafeCast.toUint256(price));
+    }
+
+    function _getUserPrice(int120 price) private pure returns (uint128) {
+        return SafeCast.toUint128(uint256(int256(price)));
+    }
+
 }

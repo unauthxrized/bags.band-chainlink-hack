@@ -28,14 +28,14 @@ contract UserStorage is Ownable {
 
     // SETTERS
 
-    function makePosition(address user, uint128 requestedLp) external onlyProtocol {
+    function makePositionFrom(address user, uint128 requestedLp) external onlyProtocol {
         _checkUserRegistration(user);
         if (avbllp[user] < requestedLp) { revert NotExpectedAmount(user, requestedLp); }
         avbllp[user] -= requestedLp;
         userPosition[user][msg.sender] = true;
     }
 
-    function closeUserPosition(address user, uint32 reward) external onlyProtocol returns (bool) {
+    function closeUserPosition(address user, uint128 reward) external onlyProtocol returns (bool) {
         avbllp[user] += reward;
         userPosition[user][msg.sender] = false;
         return true;
