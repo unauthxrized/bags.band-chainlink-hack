@@ -39,24 +39,66 @@ describe("FirstTest", function () {
 })
 
   describe("Test Init", function () {
-    it("First Protocol Test", async function () {
+    it("Make position test", async function () {
       await firstprotocol.connect(user).makePosition(true, 1000);
       const userPosition = await firstprotocol.position(user.address);
       
       expect(userPosition[0]).eq(1000n);
     });
 
-    it("Some expected desc", async function () {
+    it("Balance test", async function () {
       const balance = await storage.getBalance(user.address);
       expect(balance).eq(9000n);
+
+      await btcpair.setCost(7325692456734);
+
+      const data = await firstprotocol.calculateReward(user.address);
+      // console.log(data);
+      expect(data[0]).eq(1000000000000n);
+      expect(data[3]).eq(true);
     });
 
-    it("Some expected desc", async function () {
+    it("Close position", async function () {
+      await firstprotocol.connect(user).closePosition();
+      const upos = await firstprotocol.position(user.address);
+
+      const balance = await storage.getBalance(user.address);
+
+      // console.log(balance);
+      
+      expect(upos[0]).eq(0n);
+      expect(balance).eq(10136n);
+    });
+
+    it("Second user position", async function () {
+      await firstprotocol.connect(user2).makePosition(true, 3200);
+      const userPosition = await firstprotocol.position(user2.address);
+      
+      expect(userPosition[0]).eq(3200n);
+    });
+
+    it("Oops...", async function () {
+      await btcpair.setCost(5411111112233);
+      const data = await firstprotocol.calculateReward(user2.address);
+      console.log(data);
       
     });
 
-    it("Some expected desc", async function () {
+    it("Check positions from storage", async function () {
+      const data = await storage.calculateUserProfit(user2.address);
+      console.log(data);
+    });
+
+    it("Stop position", async function () {
+      await firstprotocol.connect(user2).closePosition();
+      const balance = await storage.getBalance(user2.address);
+      console.log(balance);
       
+    });
+
+    it("Get total users results", async function () {
+      const data = await storage.getTotalUsersResults(0, 4);
+      console.log(data);
     });
   });
 });

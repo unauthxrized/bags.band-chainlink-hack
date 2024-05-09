@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IBagsBandProtocol } from "./interface/IBagsBandProtocol.sol";
 
 contract UserStorage is Ownable {
     uint32 public pools;
@@ -54,16 +55,41 @@ contract UserStorage is Ownable {
         return avbllp[user];
     }
 
-    function getAllPools() external view returns(address[] memory) {
-        address[] memory localpools = new address[](pools);
+    function calculateUserProfit(address user) public view returns (int128, int128) {
+        int128 gained;
+        int128 totalpercentage;
+
         for (uint32 i = 0; i < pools; i++) {
-            localpools[i] = pool[i];
+            address _pool = pool[i];
+            if (!userPosition[user][_pool]) continue;
+            (, uint128 percentage,uint128 lpgained,,bool isWin) = IBagsBandProtocol(_pool).calculateReward(user);
+            if (isWin) {
+                totalpercentage += int128(percentage);
+                gained += int128(lpgained);
+            } else {
+                totalpercentage -= int128(percentage);
+                gained -= int128(lpgained);
+            }
         }
-        return localpools;
+        return (gained, totalpercentage);
     }
 
-    function calculateUserProfit(address user) external view returns (uint128) {
-        //...
+    function getTotalUsersResults(uint32 from, uint32 until) external view returns (address[] memory, int128[] memory) {
+        unchecked {
+            address[] memory usersnow = new address[](until - from);
+            int128[] memory lps = new int128[](until - from);
+            uint32 counter;
+            for (uint32 i = from; i < until; i++) {
+                address user = usermap[i];
+                usersnow[counter] = user;
+                int128 balance = int128(avbllp[user]);
+                (int128 gained,) = calculateUserProfit(user);
+                int128 _lps = balance += gained;
+                lps[counter] = _lps;
+                counter++;
+            }
+            return (usersnow, lps);
+        }
     }
 
     // PRIVATE

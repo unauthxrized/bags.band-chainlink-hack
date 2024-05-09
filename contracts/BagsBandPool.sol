@@ -36,6 +36,8 @@ contract BagsBandPool is Ownable, Percentage {
         if (amount == 0) { revert NotAcceptedAmount(amount, msg.sender); }
 
         STORAGE.makePositionFrom(msg.sender, amount);
+        positionsNow++;
+        totalTransactions++;
 
         UserPosition memory pos;
         pos.position = typeOf;
@@ -79,25 +81,38 @@ contract BagsBandPool is Ownable, Percentage {
         pos.position = false;
         position[msg.sender] = pos;
 
+        positionsNow--;
+
         return true;
     }
 
     // GETTERS
 
-    function calculateReward(address user) external view returns (uint128 increased, uint128 percentaged, uint128 ulpgained, bool upos) {
+    function calculateReward(address user) external view returns (uint128 amount, uint128 percentaged, uint128 ulpgained, bool upos, bool isWin) {
         UserPosition memory pos = position[user];
         uint128 currentPrice = _getCurrentPriceToReward();
         uint128 initialPrice = _getUserPrice(pos.price);
-        
+        bool isw;
+
         if (currentPrice > initialPrice) {
             (uint128 increase, uint128 percentage) = _ofIncrease(initialPrice, currentPrice);
             uint128 lpGained = _ofPercent(percentage, pos.amount);
-            return (increase, percentage, lpGained, pos.position);
+            if (pos.position) {
+                isw = true;
+            } else {
+                isw = false;
+            }
+            return (increase, percentage, lpGained, pos.position, isw);
         }
         if (currentPrice <= initialPrice) {
             (uint128 increase, uint128 percentage) = _ofDecrease(initialPrice, currentPrice);
             uint128 lpGained = _ofPercent(percentage, pos.amount);
-            return (increase, percentage, lpGained, pos.position);
+            if (pos.position) {
+                isw = false;
+            } else {
+                isw = true;
+            }
+            return (increase, percentage, lpGained, pos.position, isw);
         }
     }
 
